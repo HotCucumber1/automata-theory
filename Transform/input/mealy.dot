@@ -1,22 +1,20 @@
 digraph SimpleMealyMachine {
-    rankdir=LR;  // Left to Right layout
+    rankdir=LR;
     size="8,5";
     node [shape=circle];
 
-    // Начальное состояние (двойной круг)
     S0 [shape=doublecircle, color=blue];
     S1 [shape=circle];
     S2 [shape=circle];
-    S3 [shape=circle, color=red];  // Конечное состояние
+    S3 [shape=circle, color=red];
 
-    // Переходы: from -> to [label="input/output"]
     S0 -> S1 [label="0/0"];
     S0 -> S2 [label="1/0"];
 
     S1 -> S1 [label="0/0"];
-    S1 -> S3 [label="1/1"];  // Обнаружена последовательность "01"
+    S1 -> S3 [label="1/1"];
 
-    S2 -> S3 [label="0/1"];  // Обнаружена последовательность "10"
+    S2 -> S3 [label="0/1"];
     S2 -> S2 [label="1/0"];
 
     S3 -> S1 [label="0/0"];

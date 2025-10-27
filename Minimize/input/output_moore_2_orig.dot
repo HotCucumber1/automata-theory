@@ -1,0 +1,30 @@
+digraph MooreMachine {
+    rankdir=LR;
+    size="8,5"
+
+    G [label="G\noutput: out0", shape=circle];
+    A [label="A\noutput: out1", shape=circle];
+    F [label="F\noutput: out0", shape=circle];
+    D [label="D\noutput: out0", shape=circle];
+    E [label="E\noutput: out0", shape=circle];
+    H [label="H\noutput: out2", shape=circle];
+    B [label="B\noutput: out0", shape=circle];
+    C [label="C\noutput: out0", shape=circle];
+
+    B -> D [label="x0"];
+    B -> G [label="x1"];
+    H -> A [label="x0"];
+    H -> D [label="x1"];
+    E -> A [label="x0"];
+    E -> G [label="x1"];
+    F -> D [label="x0"];
+    F -> A [label="x1"];
+    C -> E [label="x0"];
+    C -> G [label="x1"];
+    D -> A [label="x0"];
+    D -> G [label="x1"];
+    A -> B [label="x0"];
+    A -> F [label="x1"];
+    G -> G [label="x0"];
+    G -> A [label="x1"];
+}

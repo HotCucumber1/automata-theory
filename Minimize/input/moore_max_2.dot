@@ -6,6 +6,7 @@ digraph Moore {
     E [label="E / out2", shape=circle];
     F [label="F / out1", shape=circle];
     G [label="G / out0", shape=circle];
+    H [label="H / out0", shape=circle];
 
     A -> B [label="x0"];
     A -> F [label="x1"];
@@ -27,4 +28,7 @@ digraph Moore {
 
     G -> G [label="x0"];
     G -> A [label="x1"];
+
+    H -> A [label="x0"];
+    H -> D [label="x1"];
 }

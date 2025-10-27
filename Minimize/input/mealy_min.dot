@@ -1,0 +1,21 @@
+digraph MealyMachine {
+    __initial__ [shape=point];
+    __initial__ -> S0;
+
+    rankdir=LR;
+    size="8,5"
+
+    S0;
+    S1;
+    S2 [shape=doublecircle, color=blue];
+    S3;
+
+    S3 -> S0 [label="x1 / y2"];
+    S3 -> S0 [label="x0 / y2"];
+    S2 -> S0 [label="x1 / y1"];
+    S2 -> S0 [label="x0 / y1"];
+    S1 -> S1 [label="x1 / y0"];
+    S1 -> S2 [label="x0 / y1"];
+    S0 -> S3 [label="x1 / y2"];
+    S0 -> S1 [label="x0 / y0"];
+}

@@ -8,6 +8,7 @@ digraph Mealy {
     D [shape=circle];
     E [shape=circle];
     F [shape=circle];
+    G [shape=circle];
 
     A -> B [label="x0 / y1"];
     A -> C [label="x1 / y1"];
@@ -26,4 +27,6 @@ digraph Mealy {
 
     F -> B [label="x0 / y2"];
     F -> C [label="x1 / y2"];
+
+    G -> D [label="x1 / y2"];
 }

@@ -1,0 +1,21 @@
+digraph MooreMachine {
+    rankdir=LR;
+    size="8,5"
+
+    S0 [label="S0\noutput: out0", shape=circle];
+    S1 [label="S1\noutput: out0", shape=doublecircle, color=blue];
+    S2 [label="S2\noutput: out1", shape=circle];
+    S3 [label="S3\noutput: out1", shape=circle];
+    S4 [label="S4\noutput: out2", shape=circle];
+
+    S4 -> S0 [label="x1"];
+    S4 -> S1 [label="x0"];
+    S3 -> S1 [label="x1"];
+    S3 -> S4 [label="x0"];
+    S2 -> S0 [label="x1"];
+    S2 -> S4 [label="x0"];
+    S1 -> S3 [label="x1"];
+    S1 -> S2 [label="x0"];
+    S0 -> S1 [label="x1"];
+    S0 -> S0 [label="x0"];
+}

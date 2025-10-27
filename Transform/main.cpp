@@ -10,9 +10,13 @@ int main()
 		mealy.FromDot("./input/mealy.dot");
 
 		MooreMachine moore(mealy);
-		MealyMachine newMealy(moore);
+		moore.SaveToDot("./output_moore.dot");
 
-		newMealy.SaveToDot("./output_new_mealy.dot");
+		// TODO убрать висячие вершины
+		// TODO пустить волны
+
+		MealyMachine newMealy(moore);
+		newMealy.SaveToDot("./output_mealy.dot");
 	}
 	catch (const std::exception& exception)
 	{

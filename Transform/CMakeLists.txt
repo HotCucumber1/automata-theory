@@ -5,4 +5,5 @@ add_executable(
         Transform
         ../Model/MealyMachine.cpp
         ../Model/MooreMachine.cpp
+        ../Model/Machine.cpp
         ../Transform/main.cpp)
