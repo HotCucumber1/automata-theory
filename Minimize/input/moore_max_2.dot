@@ -1,0 +1,30 @@
+digraph Moore {
+    A [label="A / out0", shape=circle];
+    B [label="B / out1", shape=circle];
+    C [label="C / out1", shape=circle];
+    D [label="D / out2", shape=circle];
+    E [label="E / out2", shape=circle];
+    F [label="F / out1", shape=circle];
+    G [label="G / out0", shape=circle];
+
+    A -> B [label="x0"];
+    A -> F [label="x1"];
+
+    B -> D [label="x0"];
+    B -> G [label="x1"];
+
+    C -> E [label="x0"];
+    C -> G [label="x1"];
+
+    D -> A [label="x0"];
+    D -> G [label="x1"];
+
+    E -> A [label="x0"];
+    E -> G [label="x1"];
+
+    F -> D [label="x0"];
+    F -> A [label="x1"];
+
+    G -> G [label="x0"];
+    G -> A [label="x1"];
+}
