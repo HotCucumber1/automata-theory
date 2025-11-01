@@ -14,7 +14,7 @@ public:
 
 	virtual void FromDot(const std::string& fileName) = 0;
 	virtual void SaveToDot(const std::string& fileName) = 0;
-	virtual bool HasTransition(const State& from, const Input& input) = 0;
+	virtual bool HasTransition(const State& from, const Input& input) const= 0;
 	virtual std::unique_ptr<Machine> GetMinimized() const = 0;
 	virtual State GetNextState(const State& fromState, const Input& input) const = 0;
 	virtual State GetInitialState() const = 0;

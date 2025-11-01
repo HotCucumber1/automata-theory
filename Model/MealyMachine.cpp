@@ -2,13 +2,24 @@
 #include "MooreMachine.h"
 #include <fstream>
 #include <queue>
+#include <ranges>
 #include <regex>
 #include <set>
 #include <utility>
 
+const Machine::Input MealyMachine::EPSILON;
+
+std::vector<std::vector<MealyMachine::State>> RefinePartitions(
+	const MealyMachine& machine,
+	std::vector<std::vector<Machine::State>> initialPartitions);
+std::vector<std::vector<MealyMachine::State>> CreateInitialPartitions(const MealyMachine& machine);
+std::unique_ptr<MealyMachine> BuildMinimizedMachine(
+	const MealyMachine& machine,
+	const std::vector<std::vector<Machine::State>>& finalPartitions);
+
 MealyMachine::MealyMachine(State initialState)
-	: m_currentState(std::move(initialState))
-	, m_initialState(initialState)
+	: m_initialState(initialState)
+	, m_currentState(std::move(initialState))
 {
 }
 
@@ -22,9 +33,9 @@ void MealyMachine::FromDot(const std::string& fileName)
 	std::ifstream file(fileName);
 	AssertInputIsOpen(file, fileName);
 
-	const std::regex edgeRegex(R"((\w+)\s*->\s*(\w+)\s*\[label\s*=\s*\"([^/]+)/([^\"]+)\"\]\s*;)");
+	const std::regex edgeRegex(R"((\w+)\s*->\s*(\w+)\s*\[label\s*=\s*\"([^/]*)/([^\"]+)\"\]\s*;)");
 	const std::regex digraphRegex(R"(digraph\s+(\w+)\s*\{)");
-	const std::regex initialStateRegex(R"(\{shape\s*=\s*doublecircle\})");
+	const std::regex initialStateRegex(R"(\s*(\w+)\s*\[.*shape\s*=\s*doublecircle.*\]\s*;)");
 
 	State initialState;
 
@@ -65,30 +76,22 @@ void MealyMachine::FromDot(const std::string& fileName)
 			}
 
 			AddTransition(fromState, input, toState, output);
-			if (line.find("doublecircle") != std::string::npos)
-			{
-				initialState = fromState;
-			}
 		}
-
-		if (std::regex_search(line, match, initialStateRegex))
+		else if (std::regex_search(line, match, initialStateRegex))
 		{
-			size_t pos = line.find('[');
-			if (pos != std::string::npos)
-			{
-				State state = line.substr(0, pos);
-				state.erase(state.find_last_not_of(" \t") + 1);
-				initialState = state;
-			}
+			initialState = match[1];
 		}
 	}
+	file.close();
 
 	if (!initialState.empty())
 	{
+		m_initialState = initialState;
 		m_currentState = initialState;
 	}
 	else if (!m_states.empty())
 	{
+		m_initialState = m_states[0];
 		m_currentState = m_states[0];
 	}
 }
@@ -106,7 +109,7 @@ void MealyMachine::SaveToDot(const std::string& fileName)
 	for (const auto& state : m_states)
 	{
 		file << "    " << state;
-		if (state == m_currentState)
+		if (state == m_initialState)
 		{
 			file << " [shape=doublecircle, color=blue]";
 		}
@@ -116,10 +119,14 @@ void MealyMachine::SaveToDot(const std::string& fileName)
 
 	for (const auto& [fromState, transitions] : m_transitions)
 	{
-		for (const auto& [input, transition] : transitions)
+		for (const auto& [input, transitionList] : transitions)
 		{
-			file << "    " << fromState << " -> " << transition.nextState
-				 << " [label=\"" << input << "/" << transition.output << "\"];" << std::endl;
+			for (const auto& transition : transitionList)
+			{
+				file << "    " << fromState << " -> " << transition.nextState
+					 << " [label=\"" << (input == EPSILON ? "E" : input)
+					 << "/" << transition.output << "\"];" << std::endl;
+			}
 		}
 	}
 
@@ -132,7 +139,7 @@ void MealyMachine::AddTransition(
 	const State& to,
 	const Output& output)
 {
-	m_transitions[from].emplace(input, Transition(to, output));
+	m_transitions[from][input].emplace_back(to, output);
 
 	if (std::ranges::find(m_states, from) == m_states.end())
 	{
@@ -142,7 +149,7 @@ void MealyMachine::AddTransition(
 	{
 		m_states.push_back(to);
 	}
-	if (std::ranges::find(m_inputs, input) == m_inputs.end())
+	if (input != EPSILON && std::ranges::find(m_inputs, input) == m_inputs.end())
 	{
 		m_inputs.push_back(input);
 	}
@@ -152,14 +159,34 @@ void MealyMachine::AddTransition(
 	}
 }
 
-bool MealyMachine::HasTransition(const State& from, const Input& input)
+bool MealyMachine::HasTransition(const State& from, const Input& input) const
 {
 	const auto stateIt = m_transitions.find(from);
 	if (stateIt == m_transitions.end())
 	{
 		return false;
 	}
-	return stateIt->second.contains(input);
+	const auto inputIt = stateIt->second.find(input);
+	if (inputIt == stateIt->second.end())
+	{
+		return false;
+	}
+	return !inputIt->second.empty();
+}
+
+std::vector<MealyMachine::Transition> MealyMachine::GetTransitions(const State& fromState, const Input& input) const
+{
+	const auto stateIt = m_transitions.find(fromState);
+	if (stateIt == m_transitions.end())
+	{
+		return {};
+	}
+	const auto inputIt = stateIt->second.find(input);
+	if (inputIt == stateIt->second.end())
+	{
+		return {};
+	}
+	return inputIt->second;
 }
 
 void MealyMachine::ConvertFromMoore(MooreMachine& moore)
@@ -214,7 +241,21 @@ void MealyMachine::ConvertFromMoore(MooreMachine& moore)
 
 std::unique_ptr<Machine> MealyMachine::GetMinimized() const
 {
-	MealyMachine machineToMinimize = *this;
+	MealyMachine machineToMinimize;
+	if (!this->IsDeterministic())
+	{
+		std::unique_ptr<Machine> dmmPtr = this->GetDeterministic();
+		auto* deterministicMachine = dynamic_cast<MealyMachine*>(dmmPtr.get());
+		if (!deterministicMachine)
+		{
+			throw std::runtime_error("Failed to cast deterministic machine for minimization.");
+		}
+		machineToMinimize = *deterministicMachine;
+	}
+	else
+	{
+		machineToMinimize = *this;
+	}
 
 	machineToMinimize.RemoveUnreachableStates();
 	if (machineToMinimize.m_states.empty())
@@ -228,15 +269,22 @@ std::unique_ptr<Machine> MealyMachine::GetMinimized() const
 		std::vector<Output> outputVector;
 		for (const auto& input : machineToMinimize.m_inputs)
 		{
-			outputVector.push_back(machineToMinimize.GetTransitionOutput(state, input));
+			if (machineToMinimize.HasTransition(state, input))
+			{
+				outputVector.push_back(machineToMinimize.GetTransitionOutput(state, input));
+			}
+			else
+			{
+				outputVector.emplace_back("");
+			}
 		}
 		initialGroups[outputVector].push_back(state);
 	}
 
 	std::vector<std::vector<State>> partitions;
-	for (const auto& pair : initialGroups)
+	for (const auto& val : initialGroups | std::views::values)
 	{
-		partitions.push_back(pair.second);
+		partitions.push_back(val);
 	}
 
 	while (true)
@@ -267,8 +315,15 @@ std::unique_ptr<Machine> MealyMachine::GetMinimized() const
 				std::vector<int> transitionSignature;
 				for (const auto& input : machineToMinimize.m_inputs)
 				{
-					State nextState = machineToMinimize.GetNextState(state, input);
-					transitionSignature.push_back(stateToGroupIndex.at(nextState));
+					if (machineToMinimize.HasTransition(state, input))
+					{
+						State nextState = machineToMinimize.GetNextState(state, input);
+						transitionSignature.push_back(stateToGroupIndex.at(nextState));
+					}
+					else
+					{
+						transitionSignature.push_back(-1);
+					}
 				}
 				subgroups[transitionSignature].push_back(state);
 			}
@@ -278,9 +333,9 @@ std::unique_ptr<Machine> MealyMachine::GetMinimized() const
 				splitOccurred = true;
 			}
 
-			for (const auto& pair : subgroups)
+			for (const auto& val : subgroups | std::views::values)
 			{
-				newPartitions.push_back(pair.second);
+				newPartitions.push_back(val);
 			}
 		}
 
@@ -294,8 +349,8 @@ std::unique_ptr<Machine> MealyMachine::GetMinimized() const
 
 	MealyMachine minimizedMachine;
 	std::unordered_map<State, State> oldStateToNewState;
-
 	int newStateCounter = 0;
+
 	for (const auto& group : partitions)
 	{
 		State newStateName = "S" + std::to_string(newStateCounter++);
@@ -306,8 +361,9 @@ std::unique_ptr<Machine> MealyMachine::GetMinimized() const
 			oldStateToNewState[oldState] = newStateName;
 		}
 
-		if (std::ranges::find(group, machineToMinimize.m_currentState) != group.end())
+		if (std::ranges::find(group, machineToMinimize.m_initialState) != group.end())
 		{
+			minimizedMachine.m_initialState = newStateName;
 			minimizedMachine.m_currentState = newStateName;
 		}
 	}
@@ -319,16 +375,32 @@ std::unique_ptr<Machine> MealyMachine::GetMinimized() const
 
 		for (const auto& input : machineToMinimize.m_inputs)
 		{
+			if (!machineToMinimize.HasTransition(representative, input))
+			{
+				continue;
+			}
+
 			State oldToState = machineToMinimize.GetNextState(representative, input);
 			Output output = machineToMinimize.GetTransitionOutput(representative, input);
 			const State& newToState = oldStateToNewState.at(oldToState);
 
-			minimizedMachine.AddTransition(newFromState, input, newToState, output);
+			if (!minimizedMachine.HasTransition(newFromState, input))
+			{
+				minimizedMachine.AddTransition(newFromState, input, newToState, output);
+			}
 		}
 	}
 
 	minimizedMachine.m_inputs = machineToMinimize.m_inputs;
-	minimizedMachine.m_outputs = machineToMinimize.m_outputs;
+	std::set<Output> uniqueOutputs;
+	for (const auto& map : minimizedMachine.m_transitions | std::views::values)
+	{
+		for (const auto& transList : map | std::views::values)
+		{
+			uniqueOutputs.insert(transList.front().output);
+		}
+	}
+	minimizedMachine.m_outputs.assign(uniqueOutputs.begin(), uniqueOutputs.end());
 	return std::make_unique<MealyMachine>(minimizedMachine);
 }
 
@@ -339,22 +411,16 @@ std::string MealyMachine::GetTransitionOutput(const std::string& fromState, cons
 
 MealyMachine::Transition MealyMachine::GetTransition(const State& fromState, const Input& input) const
 {
-	const auto stateIt = m_transitions.find(fromState);
-	if (stateIt == m_transitions.end())
+	auto transitions = GetTransitions(fromState, input);
+	if (transitions.empty())
 	{
-		throw std::runtime_error("No transitions from state: " + fromState);
+		throw std::runtime_error("No transition for state: " + fromState + ", input: " + input);
 	}
-
-	const auto inputIt = stateIt->second.find(input);
-	if (inputIt == stateIt->second.end())
+	if (transitions.size() > 1)
 	{
-		throw std::runtime_error("No transition for input: " + input);
+		throw std::runtime_error("Ambiguous transition (non-deterministic) for state: " + fromState + ", input: " + input);
 	}
-
-	return {
-		inputIt->second.nextState,
-		inputIt->second.output
-	};
+	return transitions.front();
 }
 
 Machine::State MealyMachine::GetNextState(const State& fromState, const Input& input) const
@@ -372,37 +438,38 @@ void MealyMachine::Clear()
 
 void MealyMachine::RemoveUnreachableStates()
 {
-	if (m_currentState.empty() || m_states.empty())
+	if (m_initialState.empty() || m_states.empty())
 	{
+		Clear();
 		return;
 	}
 
 	std::set<State> reachableStates;
-	std::queue<State> q;
+	std::queue<State> queue;
 
-	q.push(m_currentState);
-	reachableStates.insert(m_currentState);
+	queue.push(m_initialState);
+	reachableStates.insert(m_initialState);
 
-	while (!q.empty())
+	while (!queue.empty())
 	{
-		State current = q.front();
-		q.pop();
+		State current = queue.front();
+		queue.pop();
 
 		if (!m_transitions.contains(current))
 		{
 			continue;
 		}
-		for (const auto& input : m_inputs)
+
+		for (const auto& transitionList : m_transitions.at(current) | std::views::values)
 		{
-			if (!HasTransition(current, input))
+			for (const auto& trans : transitionList)
 			{
-				continue;
-			}
-			State next = GetNextState(current, input);
-			if (!reachableStates.contains(next))
-			{
-				reachableStates.insert(next);
-				q.push(next);
+				if (reachableStates.contains(trans.nextState))
+				{
+					continue;
+				}
+				reachableStates.insert(trans.nextState);
+				queue.push(trans.nextState);
 			}
 		}
 	}
@@ -417,7 +484,7 @@ void MealyMachine::RemoveUnreachableStates()
 	}
 	m_states = newStates;
 
-	std::unordered_map<State, std::unordered_map<Input, Transition>> newTransitions;
+	std::unordered_map<State, std::unordered_map<Input, std::vector<Transition>>> newTransitions;
 	for (const auto& [from, transitions] : m_transitions)
 	{
 		if (!reachableStates.contains(from))
@@ -426,5 +493,199 @@ void MealyMachine::RemoveUnreachableStates()
 		}
 		newTransitions[from] = transitions;
 	}
+
+	for (auto& transitions : newTransitions | std::views::values)
+	{
+		for (auto& transitionList : transitions | std::views::values)
+		{
+			std::vector<Transition> newTransitionList;
+			for (const auto& trans : transitionList)
+			{
+				if (!reachableStates.contains(trans.nextState))
+				{
+					continue;
+				}
+				newTransitionList.push_back(trans);
+			}
+			transitionList = newTransitionList;
+		}
+	}
+
 	m_transitions = newTransitions;
+}
+
+bool MealyMachine::IsDeterministic() const
+{
+	for (const auto& transitions : m_transitions | std::views::values)
+	{
+		if (transitions.contains(EPSILON))
+		{
+			return false;
+		}
+
+		for (const auto& transitionList : transitions | std::views::values)
+		{
+			if (transitionList.size() > 1)
+			{
+				return false;
+			}
+		}
+	}
+	return true;
+}
+
+std::string StateSetToString(const std::set<MealyMachine::State>& stateSet)
+{
+	std::stringstream ss;
+	bool first = true;
+	for (const auto& state : stateSet)
+	{
+		if (!first)
+		{
+			ss << "_";
+		}
+		ss << state;
+		first = false;
+	}
+	return ss.str();
+}
+
+std::unique_ptr<Machine> MealyMachine::GetDeterministic() const
+{
+	if (IsDeterministic())
+	{
+		return std::make_unique<MealyMachine>(*this);
+	}
+
+	auto deterministicMachine = std::make_unique<MealyMachine>();
+	std::map<std::set<State>, State> knownStates;
+	std::queue<std::set<State>> workQueue;
+	int newStateCounter = 0;
+
+	std::set<State> initialClosure = EpsilonClosure({ m_initialState });
+	State newInitialStateName = "S" + std::to_string(newStateCounter++);
+
+	deterministicMachine->m_initialState = newInitialStateName;
+	deterministicMachine->m_currentState = newInitialStateName;
+	deterministicMachine->m_states.push_back(newInitialStateName);
+
+	knownStates[initialClosure] = newInitialStateName;
+	workQueue.push(initialClosure);
+
+	while (!workQueue.empty())
+	{
+		std::set<State> currentSet = workQueue.front();
+		workQueue.pop();
+		State currentNewStateName = knownStates.at(currentSet);
+
+		for (const Input& input : m_inputs)
+		{
+			std::set<State> nextStateSet;
+			std::optional<Output> transitionOutput;
+
+			for (const State& s : currentSet)
+			{
+				auto transitions = GetTransitions(s, input);
+				for (const auto& trans : transitions)
+				{
+					if (!transitionOutput.has_value())
+					{
+						transitionOutput = trans.output;
+					}
+					else if (transitionOutput.value() != trans.output)
+					{
+						throw std::runtime_error("Non-determinizable: Output mismatch for input '" + input + "' from states in set " + currentNewStateName);
+					}
+					nextStateSet.insert(trans.nextState);
+				}
+			}
+
+			if (!transitionOutput.has_value())
+			{
+				continue;
+			}
+
+			std::set<State> nextStateClosure = EpsilonClosure(nextStateSet);
+			if (nextStateClosure.empty())
+			{
+				continue;
+			}
+
+			State nextNewStateName;
+			if (!knownStates.contains(nextStateClosure))
+			{
+				nextNewStateName = "S" + std::to_string(newStateCounter++);
+				knownStates[nextStateClosure] = nextNewStateName;
+				workQueue.push(nextStateClosure);
+				deterministicMachine->m_states.push_back(nextNewStateName);
+			}
+			else
+			{
+				nextNewStateName = knownStates.at(nextStateClosure);
+			}
+
+			deterministicMachine->AddTransition(
+				currentNewStateName,
+				input,
+				nextNewStateName,
+				transitionOutput.value());
+		}
+	}
+	deterministicMachine->m_inputs = m_inputs;
+
+	std::set<Output> uniqueOutputs;
+	for (const auto& map : deterministicMachine->m_transitions | std::views::values)
+	{
+		for (const auto& transList : map | std::views::values)
+		{
+			for (const auto& trans : transList)
+			{
+				uniqueOutputs.insert(trans.output);
+			}
+		}
+	}
+	deterministicMachine->m_outputs.assign(uniqueOutputs.begin(), uniqueOutputs.end());
+	return deterministicMachine;
+}
+
+std::set<MealyMachine::State> MealyMachine::EpsilonClosure(const std::set<State>& states) const
+{
+	std::set<State> closure = states;
+	std::queue<State> queue;
+	for (const auto& s : states)
+	{
+		queue.push(s);
+	}
+
+	while (!queue.empty())
+	{
+		State state = queue.front();
+		queue.pop();
+
+		auto transitions = GetTransitions(state, EPSILON);
+		if (transitions.empty())
+		{
+			continue;
+		}
+
+		std::optional<Output> epsilonOutput;
+		for (const auto& trans : transitions)
+		{
+			if (!epsilonOutput.has_value())
+			{
+				epsilonOutput = trans.output;
+			}
+			else if (epsilonOutput.value() != trans.output)
+			{
+				throw std::runtime_error("Non-determinizable: Output mismatch for epsilon transitions from state " + state);
+			}
+
+			if (!closure.contains(trans.nextState))
+			{
+				closure.insert(trans.nextState);
+				queue.push(trans.nextState);
+			}
+		}
+	}
+	return closure;
 }

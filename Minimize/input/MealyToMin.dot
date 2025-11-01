@@ -1,0 +1,38 @@
+digraph MealyToMin {
+    rankdir=LR;
+    size="8,5";
+    node [shape=circle];
+
+    S0 [shape=doublecircle, color=blue];
+    S1 [shape=circle];
+    S2 [shape=circle];
+    S3 [shape=circle];
+    S4 [shape=circle];
+    S5 [shape=circle];
+    S6 [shape=circle];
+    S7 [shape=circle];
+
+    S0 -> S1 [label="a/0"];
+    S0 -> S2 [label="b/0"];
+
+    S1 -> S3 [label="b/1"];
+    S1 -> S7 [label="a/0"];
+
+    S2 -> S0 [label="b/0"];
+    S2 -> S5 [label="a/0"];
+
+    S3 -> S3 [label="a/1"];
+    S3 -> S4 [label="b/1"];
+
+    S4 -> S2 [label="a/0"];
+    S4 -> S6 [label="b/1"];
+
+    S5 -> S5 [label="a/0"];
+    S5 -> S6 [label="b/1"];
+
+    S6 -> S3 [label="a/1"];
+    S6 -> S4 [label="b/1"];
+
+    S7 -> S5 [label="a/0"];
+    S7 -> S3 [label="b/1"];
+}

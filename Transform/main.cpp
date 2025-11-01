@@ -6,7 +6,7 @@ int main()
 {
 	try
 	{
-		MealyMachine mealy("S0");
+		MealyMachine mealy("S1");
 		mealy.FromDot("./input/mealy.dot");
 
 		MooreMachine moore(mealy);
