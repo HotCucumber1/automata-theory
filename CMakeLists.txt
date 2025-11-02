@@ -6,4 +6,5 @@ set(CMAKE_CXX_STANDARD 20)
 add_subdirectory(Transform)
 add_subdirectory(Minimize)
 add_subdirectory(NFA)
+add_subdirectory(Grammar)
 

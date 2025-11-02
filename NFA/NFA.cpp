@@ -7,10 +7,12 @@ int main()
 	try
 	{
 		MooreMachine moore("S0");
-		moore.FromDot("./input/moore_big.dot");
+		moore.FromDot("./input/from_lec.dot");
 
 		auto det = moore.GetDeterministic();
-		det->SaveToDot("./moored_dfa_big.dot");
+		auto newMachine = det->GetMinimized();
+
+		newMachine->SaveToDot("./min_from_lec_out.dot");
 	}
 	catch (const std::exception& e)
 	{

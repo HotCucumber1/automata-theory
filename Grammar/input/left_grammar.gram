@@ -1,0 +1,10 @@
+START: S
+
+S -> S b
+S -> A a
+S -> a
+S -> b
+
+A -> A a
+A -> S b
+A -> a

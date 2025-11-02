@@ -1,0 +1,9 @@
+START: S
+
+S -> a B
+S -> a D
+
+D -> d
+
+B -> b B
+B -> c

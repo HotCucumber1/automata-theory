@@ -1,0 +1,34 @@
+digraph SimpleMooreMachine {
+    rankdir=LR
+    size="8,5";
+
+    S0 [label="S0 / 0", shape=doublecircle];
+    S1 [label="S1 / 1", shape=circle];
+    S2 [label="S2 / 0", shape=circle];
+    S3 [label="S3 / 0", shape=circle];
+    S4 [label="S4 / 0", shape=circle];
+    S5 [label="S5 / 0", shape=circle];
+    S6 [label="S6 / 0", shape=circle];
+    S7 [label="S7 / 0", shape=circle];
+
+    S0 -> S2 [label="x"];
+    S0 -> S3 [label="x"];
+    S0 -> S4 [label="a"];
+    S0 -> S6 [label=""];
+
+    S2 -> S1 [label="x"];
+    S2 -> S7 [label=""];
+
+    S3 -> S5 [label=""];
+
+    S4 -> S2 [label="b"];
+
+    S5 -> S2 [label=""];
+    S5 -> S5 [label="y"];
+
+    S6 -> S2 [label=""];
+    S6 -> S6 [label="a"];
+
+    S7 -> S1 [label=""];
+    S7 -> S7 [label="y"];
+}

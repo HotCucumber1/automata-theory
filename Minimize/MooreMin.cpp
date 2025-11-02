@@ -5,11 +5,11 @@ int main()
 {
 	try
 	{
-		MooreMachine moore("A");
-		moore.FromDot("./input/moore_max_2.dot");
+		MooreMachine moore("S0");
+		moore.FromDot("./input/moored_dfa_big.dot");
 
 		const auto newMoore = moore.GetMinimized();
-		newMoore->SaveToDot("./moore_min_2.dot");
+		newMoore->SaveToDot("./moored_dfa_big_res.dot");
 	}
 	catch (const std::exception& exception)
 	{

@@ -9,6 +9,8 @@
 #include <set>
 
 const Machine::Input MooreMachine::EPSILON = "";
+const Machine::State MooreMachine::F_STATE = "F_STATE";
+const Machine::State MooreMachine::S_START = "S_START";
 
 MooreMachine::MooreMachine(State initialState)
 	: m_initialState(initialState)
@@ -573,8 +575,7 @@ std::optional<Machine::Output> MooreMachine::GetConsistentOutput(const std::set<
 		}
 		else if (finalOutput.value() != currentOutput)
 		{
-			if ((finalOutput.value() == "0" && currentOutput == "1") ||
-				(finalOutput.value() == "1" && currentOutput == "0"))
+			if ((finalOutput.value() == "0" && currentOutput == "1") || (finalOutput.value() == "1" && currentOutput == "0"))
 			{
 				finalOutput = "1";
 			}
@@ -670,4 +671,267 @@ void MooreMachine::RemoveUnreachableStates()
 		}
 	}
 	m_transitions = newTransitions;
+}
+
+void MooreMachine::FromGrammar(const std::string& fileName)
+{
+	std::ifstream file(fileName);
+	AssertInputIsOpen(file, fileName);
+
+	GrammarComponents grammar = ParseGrammarFile(file);
+	file.close();
+
+	GrammarType type = DetectGrammarType(grammar);
+	switch (type)
+	{
+	case GrammarType::RIGHT_LINEAR:
+		BuildNFAFromRightGrammar(grammar);
+		break;
+
+	case GrammarType::LEFT_LINEAR:
+		BuildNFAFromLeftGrammar(grammar);
+		break;
+
+	case GrammarType::MIXED_INVALID:
+		throw std::runtime_error("Grammar error: Grammar mixes left-linear and right-linear rules.");
+
+	case GrammarType::UNKNOWN:
+		BuildNFAFromRightGrammar(grammar);
+		break;
+	}
+
+	std::unique_ptr<Machine> dfa_ptr = this->GetDeterministic();
+	auto* dfa = dynamic_cast<MooreMachine*>(dfa_ptr.get());
+	if (dfa)
+	{
+		*this = *dfa;
+	}
+	else
+	{
+		throw std::runtime_error("Failed to cast deterministic machine.");
+	}
+}
+
+void MooreMachine::FromRightGrammar(const std::string& fileName)
+{
+	std::ifstream file(fileName);
+	AssertInputIsOpen(file, fileName);
+	GrammarComponents grammar = ParseGrammarFile(file);
+	file.close();
+	BuildNFAFromRightGrammar(grammar);
+
+	std::unique_ptr<Machine> dfa_ptr = this->GetDeterministic();
+	auto* dfa = dynamic_cast<MooreMachine*>(dfa_ptr.get());
+	if (dfa)
+	{
+		*this = *dfa;
+	}
+	else
+	{
+		throw std::runtime_error("Failed to cast deterministic machine.");
+	}
+}
+
+MooreMachine::GrammarComponents MooreMachine::ParseGrammarFile(std::ifstream& file)
+{
+	const std::regex startRegex(R"(^\s*START\s*:\s*(\w+)\s*$)");
+	const std::regex ruleRegex(R"(^\s*(\w+)\s*->\s*(.*)$)");
+
+	GrammarComponents grammar;
+	std::string line;
+
+	while (std::getline(file, line))
+	{
+		line.erase(0, line.find_first_not_of(" \t"));
+		line.erase(line.find_last_not_of(" \t") + 1);
+		if (line.empty() || line.substr(0, 2) == "//")
+		{
+			continue;
+		}
+
+		std::smatch match;
+		if (std::regex_match(line, match, startRegex))
+		{
+			grammar.startSymbol = match[1];
+		}
+		else if (std::regex_match(line, match, ruleRegex))
+		{
+			State fromState = match[1];
+			std::string rhs = match[2];
+
+			grammar.nonTerminals.insert(fromState);
+			grammar.rules.emplace_back(fromState, rhs);
+		}
+	}
+
+	if (grammar.startSymbol.empty())
+	{
+		throw std::runtime_error("Grammar error: START symbol not defined.");
+	}
+	return grammar;
+}
+
+MooreMachine::GrammarType MooreMachine::DetectGrammarType(const GrammarComponents& grammar)
+{
+	const std::regex twoSymbolsRegex(R"(^\s*(\w+)\s+(\w+)\s*$)");
+	const std::regex oneSymbolRegex(R"(^\s*(\w+)\s*$)");
+
+	auto detectedType = GrammarType::UNKNOWN;
+
+	for (const auto& rule : grammar.rules)
+	{
+		const std::string& rhs = rule.second;
+		std::smatch match;
+
+		if (std::regex_match(rhs, match, twoSymbolsRegex))
+		{
+			State symbolX = match[1];
+			State symbolY = match[2];
+
+			bool xIsNT = grammar.nonTerminals.contains(symbolX);
+			bool yIsNT = grammar.nonTerminals.contains(symbolY);
+
+			if (!xIsNT && yIsNT)
+			{
+				if (detectedType == GrammarType::LEFT_LINEAR)
+				{
+					return GrammarType::MIXED_INVALID;
+				}
+				detectedType = GrammarType::RIGHT_LINEAR;
+			}
+			else if (xIsNT && !yIsNT)
+			{
+				if (detectedType == GrammarType::RIGHT_LINEAR)
+				{
+					return GrammarType::MIXED_INVALID;
+				}
+				detectedType = GrammarType::LEFT_LINEAR;
+			}
+			else
+			{
+				throw std::runtime_error("Grammar error: Rule '" + rule.first + " -> " + rhs + "' is not regular.");
+			}
+		}
+	}
+
+	return detectedType;
+}
+
+void MooreMachine::BuildNFAFromRightGrammar(const GrammarComponents& grammar)
+{
+	const std::regex rhsTransitionRegex(R"(^\s*(\w+)\s+(\w+)\s*$)");
+	const std::regex rhsSingleSymbolRegex(R"(^\s*(\w+)\s*$)");
+	const std::regex rhsEpsilonRegex(R"(^\s*$)");
+
+	Clear();
+	m_initialState = grammar.startSymbol;
+	m_currentState = grammar.startSymbol;
+	AddStateOutput(F_STATE, "1");
+
+	for (const auto& nt : grammar.nonTerminals)
+	{
+		if (nt != F_STATE)
+			AddStateOutput(nt, "0");
+	}
+
+	for (const auto& rule : grammar.rules)
+	{
+		const State& fromState = rule.first;
+		const std::string& rhs = rule.second;
+		std::smatch match;
+
+		if (std::regex_match(rhs, match, rhsTransitionRegex)) // A -> a B
+		{
+			AddTransition(fromState, match[1], match[2]);
+		}
+		else if (std::regex_match(rhs, match, rhsSingleSymbolRegex))
+		{
+			State symbol = match[1];
+			if (grammar.nonTerminals.contains(symbol)) // A -> B
+			{
+				AddTransition(fromState, EPSILON, symbol);
+			}
+			else // A -> a
+			{
+				AddTransition(fromState, symbol, F_STATE);
+			}
+		}
+		else if (std::regex_match(rhs, match, rhsEpsilonRegex)) // A ->
+		{
+			AddTransition(fromState, EPSILON, F_STATE);
+			if (fromState == m_initialState)
+			{
+				AddStateOutput(m_initialState, "1");
+			}
+		}
+	}
+}
+
+void MooreMachine::FromLeftGrammar(const std::string& fileName)
+{
+	std::ifstream file(fileName);
+	AssertInputIsOpen(file, fileName);
+	GrammarComponents grammar = ParseGrammarFile(file);
+	file.close();
+
+	BuildNFAFromLeftGrammar(grammar);
+
+	std::unique_ptr<Machine> dfa_ptr = this->GetDeterministic();
+	auto* dfa = dynamic_cast<MooreMachine*>(dfa_ptr.get());
+	if (dfa)
+	{
+		*this = *dfa;
+	}
+	else
+	{
+	}
+}
+
+void MooreMachine::BuildNFAFromLeftGrammar(const GrammarComponents& grammar)
+{
+	const std::regex rhsTransitionRegex(R"(^\s*(\w+)\s+(\w+)\s*$)");
+	const std::regex rhsSingleSymbolRegex(R"(^\s*(\w+)\s*$)");
+	const std::regex rhsEpsilonRegex(R"(^\s*$)");
+
+	Clear();
+	m_initialState = S_START;
+	m_currentState = S_START;
+	AddStateOutput(S_START, "0");
+	AddStateOutput(grammar.startSymbol, "1");
+
+	for (const auto& nt : grammar.nonTerminals)
+	{
+		if (nt != grammar.startSymbol)
+		{
+			AddStateOutput(nt, "0");
+		}
+	}
+
+	for (const auto& rule : grammar.rules)
+	{
+		const State& toState = rule.first;
+		const std::string& rhs = rule.second;
+		std::smatch match;
+
+		if (std::regex_match(rhs, match, rhsTransitionRegex)) // A -> B a
+		{
+			AddTransition(match[1], match[2], toState);
+		}
+		else if (std::regex_match(rhs, match, rhsSingleSymbolRegex))
+		{
+			State symbol = match[1];
+			if (grammar.nonTerminals.contains(symbol)) // A -> B
+			{
+				AddTransition(symbol, EPSILON, toState);
+			}
+			else // A -> a
+			{
+				AddTransition(S_START, symbol, toState);
+			}
+		}
+		else if (std::regex_match(rhs, match, rhsEpsilonRegex)) // A ->
+		{
+			AddTransition(S_START, EPSILON, toState);
+		}
+	}
 }

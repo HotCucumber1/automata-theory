@@ -35,6 +35,10 @@ std::vector<std::vector<Machine::State>> Machine::BreakForPartitions(
 				std::vector<int> destinationGroups;
 				for (const auto& input : m_inputs)
 				{
+					if (!HasTransition(state, input))
+					{
+						continue;
+					}
 					State nextState = GetNextState(state, input);
 					destinationGroups.push_back(stateToGroupIndex.at(nextState));
 				}
