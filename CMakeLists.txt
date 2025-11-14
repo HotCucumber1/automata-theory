@@ -7,4 +7,4 @@ add_subdirectory(Transform)
 add_subdirectory(Minimize)
 add_subdirectory(NFA)
 add_subdirectory(Grammar)
-
+add_subdirectory(Regular)

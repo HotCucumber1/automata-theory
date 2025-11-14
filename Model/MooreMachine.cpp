@@ -12,6 +12,9 @@ const Machine::Input MooreMachine::EPSILON = "";
 const Machine::State MooreMachine::F_STATE = "F_STATE";
 const Machine::State MooreMachine::S_START = "S_START";
 
+bool IsCharSpecial(char c);
+void ValidateRegex(const std::string& expr);
+
 MooreMachine::MooreMachine(State initialState)
 	: m_initialState(initialState)
 	, m_currentState(std::move(initialState))
@@ -436,6 +439,7 @@ void MooreMachine::Clear()
 	m_outputs.clear();
 	m_stateOutputs.clear();
 	m_transitions.clear();
+	m_stateCounter = 0;
 }
 
 std::unique_ptr<Machine> MooreMachine::GetDeterministic() const
@@ -933,5 +937,279 @@ void MooreMachine::BuildNFAFromLeftGrammar(const GrammarComponents& grammar)
 		{
 			AddTransition(S_START, EPSILON, toState);
 		}
+	}
+}
+
+void MooreMachine::FromRegular(const std::string& regular)
+{
+	Clear();
+
+	if (regular.empty())
+	{
+		m_initialState = "S0";
+		m_currentState = m_initialState;
+		AddStateOutput(m_initialState, "1");
+		return;
+	}
+
+	std::string expr;
+	for (const auto c : regular)
+	{
+		if (c == ' ')
+		{
+			continue;
+		}
+		expr += c;
+	}
+
+	try
+	{
+		auto [startState, acceptState] = BuildNFAFromReg(expr);
+
+		m_initialState = startState;
+		m_currentState = startState;
+
+		for (const auto& state : m_states)
+		{
+			if (state == acceptState)
+			{
+				AddStateOutput(state, "1");
+			}
+			else
+			{
+				AddStateOutput(state, "0");
+			}
+		}
+	}
+	catch (const std::exception& e)
+	{
+		Clear();
+		throw std::runtime_error("Invalid regular expression: " + std::string(e.what()));
+	}
+}
+
+MooreMachine::NFAFragment MooreMachine::BuildNFAFromReg(const std::string& expr)
+{
+	ValidateRegex(expr);
+	size_t pos = 0;
+	return ParseAlternation(expr, pos);
+}
+
+MooreMachine::NFAFragment MooreMachine::ParseAlternation(const std::string& expr, size_t& pos)
+{
+	auto result = ParseConcatenation(expr, pos);
+
+	while (pos < expr.length() && expr[pos] == '|')
+	{
+		pos++;
+		auto right = ParseConcatenation(expr, pos);
+		result = CreateAlternationNFA(result, right);
+	}
+	return result;
+}
+
+MooreMachine::NFAFragment MooreMachine::ParseConcatenation(const std::string& expr, size_t& pos)
+{
+	auto result = ParseElement(expr, pos);
+
+	while (pos < expr.length() && expr[pos] != ')' && expr[pos] != '|')
+	{
+		auto right = ParseElement(expr, pos);
+		result = CreateConcatenationNFA(result, right);
+	}
+
+	return result;
+}
+
+MooreMachine::NFAFragment MooreMachine::ParseElement(const std::string& expr, size_t& pos)
+{
+	auto result = ParseAtom(expr, pos);
+
+	while (pos < expr.length() && expr[pos] == '*')
+	{
+		pos++;
+		result = CreateStarNFA(result);
+	}
+
+	return result;
+}
+
+// MooreMachine::NFAFragment MooreMachine::ParseAtom(const std::string& expr, size_t& pos)
+// {
+// 	if (pos >= expr.length())
+// 	{
+// 		throw std::runtime_error("Unexpected end of expression");
+// 	}
+//
+// 	if (expr[pos] == '(')
+// 	{
+// 		pos++;
+// 		auto result = ParseAlternation(expr, pos);
+//
+// 		if (pos >= expr.length() || expr[pos] != ')')
+// 		{
+// 			throw std::runtime_error("Expected closing parenthesis");
+// 		}
+// 		pos++;
+// 		return result;
+// 	}
+//
+// 	std::string inputStr;
+// 	if (expr[pos] == 'e' && (pos + 1 == expr.length() || IsCharSpecial(expr[pos + 1])))
+// 	{
+// 		inputStr = EPSILON;
+// 		pos++;
+// 	}
+// 	else
+// 	{
+// 		inputStr = std::string(1, expr[pos]);
+// 		pos++;
+//
+// 		while (pos < expr.length() && !IsCharSpecial(expr[pos]) && expr[pos] != ' ')
+// 		{
+// 			inputStr += expr[pos];
+// 			pos++;
+// 		}
+// 	}
+// 	return GenerateNewStates(inputStr);
+// }
+
+MooreMachine::NFAFragment MooreMachine::ParseAtom(const std::string& expr, size_t& pos)
+{
+	if (pos >= expr.length())
+	{
+		throw std::runtime_error("Unexpected end of expression");
+	}
+
+	if (expr[pos] == '(')
+	{
+		pos++;
+		auto result = ParseAlternation(expr, pos);
+
+		if (pos >= expr.length() || expr[pos] != ')')
+		{
+			throw std::runtime_error("Expected closing parenthesis");
+		}
+		pos++;
+		return result;
+	}
+
+	std::string inputStr;
+	if (expr[pos] == 'e' && (pos + 1 == expr.length() || IsCharSpecial(expr[pos + 1])))
+	{
+		inputStr = EPSILON;
+		pos++;
+	}
+	else
+	{
+		inputStr = std::string(1, expr[pos]);
+		pos++;
+	}
+	return GenerateNewStates(inputStr);
+}
+
+MooreMachine::NFAFragment MooreMachine::GenerateNewStates(const Input& input)
+{
+	const auto start = GenerateNewState();
+	const auto accept = GenerateNewState();
+
+	AddTransition(start, input, accept);
+
+	return {
+		start,
+		accept,
+	};
+}
+
+MooreMachine::NFAFragment MooreMachine::CreateAlternationNFA(const NFAFragment& a, const NFAFragment& b)
+{
+	const auto start = GenerateNewState();
+	const auto accept = GenerateNewState();
+
+	AddTransition(start, EPSILON, a.startState);
+	AddTransition(start, EPSILON, b.startState);
+
+	AddTransition(a.acceptState, EPSILON, accept);
+	AddTransition(b.acceptState, EPSILON, accept);
+
+	return {
+		start,
+		accept,
+	};
+}
+
+MooreMachine::NFAFragment MooreMachine::CreateConcatenationNFA(const NFAFragment& a, const NFAFragment& b)
+{
+	AddTransition(a.acceptState, EPSILON, b.startState);
+
+	return {a.startState, b.acceptState};
+}
+
+MooreMachine::NFAFragment MooreMachine::CreateStarNFA(const NFAFragment& fragment)
+{
+	const auto start = GenerateNewState();
+	const auto accept = GenerateNewState();
+
+	AddTransition(start, EPSILON, accept);
+	AddTransition(start, EPSILON, fragment.startState);
+
+	AddTransition(fragment.acceptState, EPSILON, fragment.startState);
+	AddTransition(fragment.acceptState, EPSILON, accept);
+
+	return {
+		start,
+		accept,
+	};
+}
+
+Machine::State MooreMachine::GenerateNewState()
+{
+	return "S" + std::to_string(m_stateCounter++);
+}
+
+bool IsCharSpecial(const char c)
+{
+	return c == '(' || c == ')' || c == '*' || c == '|' || c == 'e';
+}
+
+void ValidateRegex(const std::string& expr)
+{
+	int parenCount = 0;
+
+	for (size_t i = 0; i < expr.length(); ++i)
+	{
+		char c = expr[i];
+
+		if (c == '(')
+		{
+			parenCount++;
+		}
+		else if (c == ')')
+		{
+			parenCount--;
+			if (parenCount < 0)
+			{
+				throw std::runtime_error("Unmatched closing parenthesis");
+			}
+		}
+		else if (c == '*')
+		{
+			if (i == 0 || expr[i - 1] == '(' || expr[i - 1] == '|')
+			{
+				throw std::runtime_error("Invalid use of * operator");
+			}
+		}
+		else if (c == '|')
+		{
+			if (i == 0 || i == expr.length() - 1 || expr[i - 1] == '(' || expr[i + 1] == ')' || expr[i + 1] == '|' || expr[i + 1] == '*')
+			{
+				throw std::runtime_error("Invalid use of | operator");
+			}
+		}
+	}
+
+	if (parenCount != 0)
+	{
+		throw std::runtime_error("Wrong brackets count");
 	}
 }

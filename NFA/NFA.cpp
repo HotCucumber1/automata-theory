@@ -9,8 +9,8 @@ int main()
 		MooreMachine moore("S0");
 		moore.FromDot("./input/from_lec.dot");
 
-		auto det = moore.GetDeterministic();
-		auto newMachine = det->GetMinimized();
+		const auto det = moore.GetDeterministic();
+		const auto newMachine = det->GetMinimized();
 
 		newMachine->SaveToDot("./min_from_lec_out.dot");
 	}
