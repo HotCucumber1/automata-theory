@@ -1,0 +1,10 @@
+main
+  var a, b, c: int;
+  var x, y: float;
+  const z = 52;
+  const x42 = 444 + (-323);
+  begin
+    x = x + (-a * -c) + y;
+    t = -r +d+z+(-(-a))              * (-3) * (((A+v)))
+  end
+end.

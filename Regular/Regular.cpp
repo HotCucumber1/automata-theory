@@ -15,7 +15,7 @@ int main()
 		// dfa->SaveToDot("./DFA_12.dot");
 
 		const auto min = dfa->GetMinimized();
-		min->SaveToDot("./MIN_113.dot");
+		min->SaveToDot("./elisey_ex.dot");
 	}
 	catch (const std::exception& e)
 	{

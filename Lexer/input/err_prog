@@ -1,0 +1,6 @@
+abc = 5;
+number = 'h';
+if (!m_field.myField)
+{
+    a++;
+}
