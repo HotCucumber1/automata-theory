@@ -3,7 +3,7 @@
 #include <ostream>
 #include <ranges>
 
-Grammar::RulesMap Grammar::GetRules() const
+const Grammar::RulesMap& Grammar::GetRules() const
 {
 	return m_rules;
 }
@@ -15,6 +15,11 @@ void Grammar::SetRules(const RulesMap& rules)
 
 void Grammar::AddRule(const char left, const std::string& right, const bool isAxiom)
 {
+	if (!m_rules.contains(left))
+	{
+		m_orderedNonTerminals.push_back(left);
+	}
+
 	m_rules[left].push_back(right);
 	if (isAxiom)
 	{
@@ -27,14 +32,9 @@ bool Grammar::IsNonTerminal(const char c)
 	return isupper(c);
 }
 
-std::set<char> Grammar::GetNonTerminals() const
+std::vector<char> Grammar::GetNonTerminals() const
 {
-	std::set<char> nonTerminals;
-	for (const auto& key : m_rules | std::views::keys)
-	{
-		nonTerminals.insert(key);
-	}
-	return nonTerminals;
+	return m_orderedNonTerminals;
 }
 
 char Grammar::GetAxiom() const

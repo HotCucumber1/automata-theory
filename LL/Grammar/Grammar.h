@@ -1,15 +1,16 @@
 #pragma once
+#include <iostream>
+#include <map>
 #include <set>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 class Grammar
 {
 public:
-	using RulesMap = std::unordered_map<char, std::vector<std::string>>;
+	using RulesMap = std::map<char, std::vector<std::string>>;
 
-	RulesMap GetRules() const;
+	const RulesMap& GetRules() const;
 
 	void SetRules(const RulesMap& rules);
 
@@ -17,13 +18,14 @@ public:
 
 	static bool IsNonTerminal(char c);
 
-	std::set<char> GetNonTerminals() const;
+	std::vector<char> GetNonTerminals() const;
 
 	char GetAxiom() const;
 
-	void Print(std::ostream& out) const;
+	void Print(std::ostream& out = std::cout) const;
 
 private:
 	RulesMap m_rules;
+	std::vector<char> m_orderedNonTerminals;
 	char m_axiom = 'S';
 };
