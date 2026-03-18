@@ -2,6 +2,7 @@
 #include "Grammar/Grammar.h"
 
 #include <map>
+#include <unordered_map>
 
 struct TableRow
 {
@@ -18,9 +19,14 @@ struct TableRow
 class LLTableBuilder
 {
 public:
+	static constexpr char EPSILON = '#';
+	static constexpr char END_OF_FILE = '$';
+
 	void BuildTable(const Grammar& g);
 
 	void PrintTable() const;
+
+	std::unordered_map<size_t, TableRow> GetTable() const;
 
 private:
 	std::set<char> GetFirstOfSequence(const std::string& seq);
@@ -33,8 +39,11 @@ private:
 
 	void ValidateLL1(const Grammar& g);
 
+	void TransformRowsToMap();
+
 private:
-	std::map<char, std::set<char>> first;
-	std::map<char, std::set<char>> follow;
-	std::vector<TableRow> table;
+	std::map<char, std::set<char>> m_first;
+	std::map<char, std::set<char>> m_follow;
+	std::vector<TableRow> m_table;
+	std::unordered_map<size_t, TableRow> m_rows;
 };

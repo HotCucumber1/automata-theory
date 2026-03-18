@@ -4,16 +4,15 @@
 #include <ios>
 #include <iostream>
 
-constexpr char EPSILON = '#';
-constexpr char END_OF_FILE = '$';
+
 
 void LLTableBuilder::BuildTable(const Grammar& g)
 {
 	BuildFirstAndFollow(g);
 	ValidateLL1(g);
 
-	table.clear();
-	table.push_back({});
+	m_table.clear();
+	m_table.push_back({});
 
 	size_t currentIndex = 1;
 	std::map<char, int> lhsIndices;
@@ -27,33 +26,33 @@ void LLTableBuilder::BuildTable(const Grammar& g)
 	}
 
 	// Заполняем строки левых частей
-	for (char nt : g.GetNonTerminals())
+	for (char nonTerminals : g.GetNonTerminals())
 	{
-		const auto& rules = g.GetRules().at(nt);
+		const auto& rules = g.GetRules().at(nonTerminals);
 		for (size_t i = 0; i < rules.size(); ++i)
 		{
 			TableRow row;
-			row.id = lhsIndices[nt] + i;
-			row.symbol = std::string(1, nt);
-			row.guideSet = GetGuideSet(nt, rules[i]);
+			row.id = lhsIndices[nonTerminals] + i;
+			row.symbol = std::string(1, nonTerminals);
+			row.guideSet = GetGuideSet(nonTerminals, rules[i]);
 			row.stack = 0;
 			row.error = (i == rules.size() - 1);
 			row.end = false;
 			row.shift = false;
 			row.next = -1;
-			table.push_back(row);
+			m_table.push_back(row);
 		}
 	}
 
-	// Проход 2: Строим строки для правых частей правил
+	// Строим строки для правых частей правил
 	std::map<std::pair<char, int>, int> rhsStartIndices;
 
-	for (char nt : g.GetNonTerminals())
+	for (char nonTerminal : g.GetNonTerminals())
 	{
-		const auto& rules = g.GetRules().at(nt);
+		const auto& rules = g.GetRules().at(nonTerminal);
 		for (size_t i = 0; i < rules.size(); ++i)
 		{
-			rhsStartIndices[{ nt, i }] = currentIndex;
+			rhsStartIndices[{ nonTerminal, i }] = currentIndex;
 			const auto rule = rules[i];
 
 			if (rule.empty())
@@ -61,13 +60,13 @@ void LLTableBuilder::BuildTable(const Grammar& g)
 				TableRow row;
 				row.id = currentIndex++;
 				row.symbol = EPSILON;
-				row.guideSet = GetGuideSet(nt, rule);
+				row.guideSet = GetGuideSet(nonTerminal, rule);
 				row.next = 0;
 				row.stack = 0;
 				row.error = true;
-				row.end = (nt == g.GetAxiom());
+				row.end = (nonTerminal == g.GetAxiom());
 				row.shift = false;
-				table.push_back(row);
+				m_table.push_back(row);
 			}
 			else
 			{
@@ -85,8 +84,8 @@ void LLTableBuilder::BuildTable(const Grammar& g)
 						row.next = isLast ? 0 : currentIndex;
 						row.stack = 0;
 						row.error = true;
-						row.end = (isLast && nt == g.GetAxiom());
-						row.shift = true;
+						row.end = (isLast && nonTerminal == g.GetAxiom());
+						row.shift = X != EPSILON;
 					}
 					else
 					{
@@ -94,10 +93,10 @@ void LLTableBuilder::BuildTable(const Grammar& g)
 						row.next = lhsIndices[X];
 						row.stack = isLast ? 0 : currentIndex;
 						row.error = true;
-						row.end = (isLast && nt == g.GetAxiom());
+						row.end = (isLast && nonTerminal == g.GetAxiom());
 						row.shift = false;
 					}
-					table.push_back(row);
+					m_table.push_back(row);
 				}
 			}
 		}
@@ -110,9 +109,11 @@ void LLTableBuilder::BuildTable(const Grammar& g)
 		for (size_t i = 0; i < rules.size(); ++i)
 		{
 			auto rowId = lhsIndices[nt] + i;
-			table[rowId].next = rhsStartIndices[{ nt, i }];
+			m_table[rowId].next = rhsStartIndices[{ nt, i }];
 		}
 	}
+
+	TransformRowsToMap();
 }
 
 void LLTableBuilder::PrintTable() const
@@ -129,9 +130,9 @@ void LLTableBuilder::PrintTable() const
 			  << std::endl;
 	std::cout << std::string(90, '-') << std::endl;
 
-	for (size_t i = 1; i < table.size(); ++i)
+	for (size_t i = 1; i < m_table.size(); ++i)
 	{
-		const auto& row = table[i];
+		const auto& row = m_table[i];
 		std::string guideStr;
 		for (const auto c : row.guideSet)
 		{
@@ -144,11 +145,19 @@ void LLTableBuilder::PrintTable() const
 				  << std::setw(25) << guideStr
 				  << std::setw(10) << row.next
 				  << std::setw(10) << row.stack
-				  << std::setw(10) << (row.error ? "+" : "-")
-				  << std::setw(10) << (row.end ? "+" : "-")
-				  << std::setw(10) << (row.shift ? "+" : "-")
+				  << std::setw(10) << (row.error ? "true" : "false")
+				  << std::setw(10) << (row.end ? "true" : "false")
+				  << std::setw(10) << (row.shift ? "true" : "false")
 				  << std::endl;
 	}
+}
+std::unordered_map<size_t, TableRow> LLTableBuilder::GetTable() const
+{
+	if (m_rows.empty())
+	{
+		throw std::runtime_error("Table is not initialised");
+	}
+	return m_rows;
 }
 
 std::set<char> LLTableBuilder::GetFirstOfSequence(const std::string& seq)
@@ -170,7 +179,7 @@ std::set<char> LLTableBuilder::GetFirstOfSequence(const std::string& seq)
 		}
 
 		auto hasEps = false;
-		for (char f : first[c])
+		for (char f : m_first[c])
 		{
 			if (f == EPSILON)
 			{
@@ -200,7 +209,7 @@ std::set<char> LLTableBuilder::GetGuideSet(const char lhs, const std::string& rh
 	if (guide.contains(EPSILON))
 	{
 		guide.erase(EPSILON);
-		for (const auto f : follow[lhs])
+		for (const auto f : m_follow[lhs])
 		{
 			guide.insert(f);
 		}
@@ -210,11 +219,11 @@ std::set<char> LLTableBuilder::GetGuideSet(const char lhs, const std::string& rh
 
 std::set<char> LLTableBuilder::GetGuideForNT(char X)
 {
-	std::set<char> res = first[X];
+	std::set<char> res = m_first[X];
 	if (res.contains(EPSILON))
 	{
 		res.erase(EPSILON);
-		for (const auto f : follow[X])
+		for (const auto f : m_follow[X])
 		{
 			res.insert(f);
 		}
@@ -226,12 +235,12 @@ void LLTableBuilder::BuildFirstAndFollow(const Grammar& g)
 {
 	for (const auto nt : g.GetNonTerminals())
 	{
-		first[nt] = {};
-		follow[nt] = {};
+		m_first[nt] = {};
+		m_follow[nt] = {};
 	}
-	follow[g.GetAxiom()].insert(END_OF_FILE);
+	m_follow[g.GetAxiom()].insert(END_OF_FILE);
 
-	// FISRT
+	// FIRST
 	bool changed = true;
 	while (changed)
 	{
@@ -244,7 +253,7 @@ void LLTableBuilder::BuildFirstAndFollow(const Grammar& g)
 				std::set<char> seqFirst = GetFirstOfSequence(rule);
 				for (const auto c : seqFirst)
 				{
-					if (first[nt].insert(c).second)
+					if (m_first[nt].insert(c).second)
 					{
 						changed = true;
 					}
@@ -253,7 +262,6 @@ void LLTableBuilder::BuildFirstAndFollow(const Grammar& g)
 		}
 	}
 
-	// FOLLOW
 	changed = true;
 	while (changed)
 	{
@@ -269,26 +277,45 @@ void LLTableBuilder::BuildFirstAndFollow(const Grammar& g)
 					if (Grammar::IsNonTerminal(B))
 					{
 						std::string beta = rule.substr(i + 1);
-						std::set<char> firstBeta = GetFirstOfSequence(beta);
-						bool betaHasEps = false;
-						for (const auto f : firstBeta)
+
+						if (beta.empty())
 						{
-							if (f == EPSILON)
+							for (const auto f : m_follow[nt])
 							{
-								betaHasEps = true;
-							}
-							else if (follow[B].insert(f).second)
-							{
-								changed = true;
-							}
-						}
-						if (betaHasEps || beta.empty())
-						{
-							for (const auto f : follow[nt])
-							{
-								if (follow[B].insert(f).second)
+								if (m_follow[B].insert(f).second)
 								{
 									changed = true;
+								}
+							}
+						}
+						else
+						{
+							std::set<char> firstBeta = GetFirstOfSequence(beta);
+							bool betaHasEps = false;
+
+							for (const auto f : firstBeta)
+							{
+								if (f == EPSILON)
+								{
+									betaHasEps = true;
+								}
+								else
+								{
+									if (m_follow[B].insert(f).second)
+									{
+										changed = true;
+									}
+								}
+							}
+
+							if (betaHasEps)
+							{
+								for (const auto f : m_follow[nt])
+								{
+									if (m_follow[B].insert(f).second)
+									{
+										changed = true;
+									}
 								}
 							}
 						}
@@ -321,9 +348,9 @@ void LLTableBuilder::ValidateLL1(const Grammar& g)
 			{
 				if (seenTerminals.contains(c))
 				{
-					std::string errorMsg = "Грамматика не является LL(1)! ";
-					errorMsg += "Найдено пересечение (конфликт) для нетерминала '";
-					errorMsg += std::string(1, nt) + "' по символу '" + std::string(1, c) + "'.\n";
+					std::string errorMsg = "Grammar is not LL(1)! ";
+					errorMsg += "Conflict found for non terminals '";
+					errorMsg += std::string(1, nt) + "'. The conflict character is '" + std::string(1, c) + "'.\n";
 					errorMsg += "Альтернатива " + std::to_string(i + 1) + ": -> " + (rules[i].empty() ? "e" : rules[i]);
 
 					throw std::runtime_error(errorMsg);
@@ -331,5 +358,15 @@ void LLTableBuilder::ValidateLL1(const Grammar& g)
 				seenTerminals.insert(c);
 			}
 		}
+	}
+}
+void LLTableBuilder::TransformRowsToMap()
+{
+	m_rows.reserve(m_table.size());
+
+	for (const auto& row : m_table)
+	{
+		auto currentId = row.id;
+		m_rows.emplace(currentId, row);
 	}
 }

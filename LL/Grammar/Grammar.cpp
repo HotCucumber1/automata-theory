@@ -13,7 +13,10 @@ void Grammar::SetRules(const RulesMap& rules)
 	m_rules = rules;
 }
 
-void Grammar::AddRule(const char left, const std::string& right, const bool isAxiom)
+void Grammar::AddRule(
+	const char left,
+	const std::string& right,
+	const bool isAxiom)
 {
 	if (!m_rules.contains(left))
 	{
@@ -44,11 +47,21 @@ char Grammar::GetAxiom() const
 
 void Grammar::Print(std::ostream& out) const
 {
-	for (const auto& rule : m_rules)
+	// for (const auto & m_rule : std::ranges::reverse_view(m_rules))
+	// {
+	// 	const auto& left = m_rule.first;
+	// 	const auto& right = m_rule.second;
+	//
+	// 	for (const auto& rhs : right)
+	// 	{
+	// 		out << left << " -> " << rhs << std::endl;
+	// 	}
+	// }
+	for (const auto& [left, right] : m_rules)
 	{
-		for (const auto& rhs : rule.second)
+		for (const auto& rhs : right)
 		{
-			out << rule.first << " -> " << rhs << std::endl;
+			out << left << " -> " << rhs << std::endl;
 		}
 	}
 }
