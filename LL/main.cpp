@@ -5,9 +5,6 @@
 Grammar GetTask1Grammar();
 Grammar GetWrongGrammar();
 Grammar GetExampleFromPres();
-/**
- * Разобрали на паре
- */
 Grammar GetClassExample();
 
 Grammar ControlWork1();
@@ -26,7 +23,7 @@ int main()
 		// g.Print();
 		// std::cout << std::endl;
 		//
-		// LLTableBuilder builder; // TODO у правила # неверно определяется направляющее множество
+		// LLTableBuilder builder;
 		// builder.BuildTable(g);
 		// builder.PrintTable();
 

@@ -1,0 +1,37 @@
+#pragma once
+#include <iostream>
+#include <map>
+#include <string>
+#include <vector>
+
+class Grammar2
+{
+public:
+	struct RuleItem
+	{
+		std::string ruleName;
+		bool isTerminal;
+		auto operator<=>(const RuleItem&) const = default;
+	};
+
+	using RulesMap = std::map<RuleItem, std::vector<std::vector<RuleItem>>>;
+
+	const RulesMap& GetRules() const;
+
+	void SetRules(const RulesMap& rules);
+
+	void AddRule(const RuleItem& left, const std::vector<RuleItem>& right, bool isAxiom = false);
+
+	static bool IsNonTerminal(const RuleItem& rule);
+
+	std::vector<RuleItem> GetNonTerminals() const;
+
+	RuleItem GetAxiom() const;
+
+	void Print(std::ostream& out = std::cout) const;
+
+private:
+	RulesMap m_rules;
+	std::vector<RuleItem> m_orderedNonTerminals;
+	RuleItem m_axiom = { "S", false };
+};
