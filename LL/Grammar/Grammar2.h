@@ -4,16 +4,17 @@
 #include <string>
 #include <vector>
 
+struct RuleItem
+{
+	std::string ruleName;
+	bool isTerminal;
+
+	auto operator<=>(const RuleItem&) const = default;
+};
+
 class Grammar2
 {
 public:
-	struct RuleItem
-	{
-		std::string ruleName;
-		bool isTerminal;
-		auto operator<=>(const RuleItem&) const = default;
-	};
-
 	using RulesMap = std::map<RuleItem, std::vector<std::vector<RuleItem>>>;
 
 	const RulesMap& GetRules() const;

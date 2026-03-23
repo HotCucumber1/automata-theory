@@ -28,12 +28,12 @@ bool Grammar2::IsNonTerminal(const RuleItem& rule)
 	return !rule.isTerminal;
 }
 
-std::vector<Grammar2::RuleItem> Grammar2::GetNonTerminals() const
+std::vector<RuleItem> Grammar2::GetNonTerminals() const
 {
 	return m_orderedNonTerminals;
 }
 
-Grammar2::RuleItem Grammar2::GetAxiom() const
+RuleItem Grammar2::GetAxiom() const
 {
 	return m_axiom;
 }

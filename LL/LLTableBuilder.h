@@ -1,14 +1,16 @@
 #pragma once
-#include "Grammar/Grammar.h"
+
+#include "Grammar/Grammar2.h"
 
 #include <map>
+#include <set>
 #include <unordered_map>
 
 struct TableRow
 {
 	size_t id;
-	std::string symbol;
-	std::set<char> guideSet;
+	std::string leftPart;
+	std::set<RuleItem> guideSet;
 	size_t next;
 	size_t stack;
 	bool error;
@@ -19,31 +21,31 @@ struct TableRow
 class LLTableBuilder
 {
 public:
-	static constexpr char EPSILON = '#';
-	static constexpr char END_OF_FILE = '$';
+	static constexpr std::string EPSILON = "#";
+	static constexpr std::string END_OF_FILE = "$";
 
-	void BuildTable(const Grammar& g);
+	void BuildTable(const Grammar2& g);
 
 	void PrintTable() const;
 
 	std::unordered_map<size_t, TableRow> GetTable() const;
 
 private:
-	std::set<char> GetFirstOfSequence(const std::string& seq);
+	std::set<RuleItem> GetFirstOfSequence(const std::vector<RuleItem>& seq);
 
-	std::set<char> GetGuideSet(char lhs, const std::string& rhs);
+	std::set<RuleItem> GetGuideSet(const RuleItem& lhs, const std::vector<RuleItem>& rhs);
 
-	std::set<char> GetGuideForNT(char X);
+	std::set<RuleItem> GetGuideForNT(const RuleItem& X);
 
-	void BuildFirstAndFollow(const Grammar& g);
+	void BuildFirstAndFollow(const Grammar2& g);
 
-	void ValidateLL1(const Grammar& g);
+	void ValidateLL1(const Grammar2& g);
 
 	void TransformRowsToMap();
 
 private:
-	std::map<char, std::set<char>> m_first;
-	std::map<char, std::set<char>> m_follow;
+	std::map<RuleItem, std::set<RuleItem>> m_first;
+	std::map<RuleItem, std::set<RuleItem>> m_follow;
 	std::vector<TableRow> m_table;
 	std::unordered_map<size_t, TableRow> m_rows;
 };

@@ -1,4 +1,5 @@
 #include "Parser.h"
+#include  "Grammar/Grammar.h"
 
 #include <iostream>
 
@@ -13,6 +14,7 @@ Grammar ControlWork3();
 Grammar ControlWork4();
 
 Grammar GetConditionGrammar();
+Grammar2 GetConditionGrammar2();
 
 int main()
 {
@@ -36,9 +38,9 @@ int main()
 		const auto input2 = "ta=i;b:ra:ie$";
 		const auto g2 = ControlWork2();
 
-		const auto condInput1 = "taf$";
-		const auto condInput2 = "(q+w)<=q*watafo(q>w+r)$";
-		const auto condGrammar = GetConditionGrammar();
+		const auto condInput1 = "true and false $";
+		const auto condInput2 = "( q + w ) <= q * w and true and false or ( q > w + r ) $";
+		const auto condGrammar = GetConditionGrammar2();
 
 		Parser parser(condGrammar);
 		if (parser.ParseInput(condInput2))
@@ -48,8 +50,13 @@ int main()
 		}
 		std::cerr << "Error here:" << std::endl;
 		parser.PrintCurrRow(std::cerr);
-		std::cerr << "Parsed str: " << parser.GetParsedStr() << std::endl;
-		std::cerr << "Current char: " << parser.GetCurrChar() << std::endl;
+		std::cerr << "Parsed str: ";
+		for (const auto& token : parser.GetParsedStr())
+		{
+			std::cerr << token.ruleName << ' ';
+		}
+		std::cerr << std::endl;
+		std::cerr << "Current char: " << parser.GetCurrToken().ruleName << std::endl;
 	}
 	catch (const std::exception& e)
 	{
@@ -86,6 +93,93 @@ int main()
 // L    -> - L | (G) | O | NUM
 // O    -> P Q
 // Q    -> # | . P Q | [G] Q
+
+Grammar2 GetConditionGrammar2()
+{
+	Grammar2 g;
+
+	// Вспомогательные лямбды для краткости (если хочешь)
+	auto NT = [](const std::string& name) { return RuleItem{ name, false }; };
+	auto T = [](const std::string& name) { return RuleItem{ name, true }; };
+	auto EPS = RuleItem{ "#", true };
+
+	// --- Корень и Логические уровни (OR, AND) ---
+	g.AddRule(NT("S"), { NT("A"), T("$") });
+	g.AddRule(NT("A"), { NT("B"), NT("C") });
+	g.AddRule(NT("C"), { T("or"), NT("B"), NT("C") });
+	g.AddRule(NT("C"), { EPS });
+
+	g.AddRule(NT("B"), { NT("D"), NT("E") });
+	g.AddRule(NT("E"), { T("and"), NT("D"), NT("E") });
+	g.AddRule(NT("E"), { EPS });
+
+	// --- Логическое НЕ и Сравнение ---
+	g.AddRule(NT("D"), { T("not"), NT("D") });
+	g.AddRule(NT("D"), { NT("F") });
+	g.AddRule(NT("F"), { NT("G"), NT("X") });
+	g.AddRule(NT("X"), { NT("H"), NT("I") });
+	g.AddRule(NT("X"), { EPS });
+	g.AddRule(NT("I"), { NT("G") });
+
+	// --- Операторы сравнения (факторизованные) ---
+	g.AddRule(NT("H"), { T("<=") });
+	g.AddRule(NT("H"), { T(">=") });
+	g.AddRule(NT("H"), { T("<>") });
+	g.AddRule(NT("H"), { T("==") });
+	g.AddRule(NT("H"), { T("<") });
+	g.AddRule(NT("H"), { T(">") });
+
+	// --- Арифметика (Сложение/Вычитание) ---
+	g.AddRule(NT("G"), { NT("J"), NT("K") });
+	g.AddRule(NT("K"), { T("+"), NT("J"), NT("K") });
+	g.AddRule(NT("K"), { T("-"), NT("J"), NT("K") });
+	g.AddRule(NT("K"), { EPS });
+
+	// --- Арифметика (Умножение/Деление) ---
+	g.AddRule(NT("J"), { NT("L"), NT("M") });
+	g.AddRule(NT("M"), { NT("N"), NT("L"), NT("M") });
+	g.AddRule(NT("M"), { EPS });
+
+	g.AddRule(NT("N"), { T("*") });
+	g.AddRule(NT("N"), { T("/") });
+	g.AddRule(NT("N"), { T("mod") });
+	g.AddRule(NT("N"), { T("div") });
+
+	// --- Атомарные выражения ---
+	g.AddRule(NT("L"), { T("-"), NT("L") }); // Унарный минус
+	g.AddRule(NT("L"), { T("("), NT("A"), T(")") });
+	g.AddRule(NT("L"), { NT("O") }); // Переменные
+	g.AddRule(NT("L"), { NT("Z") }); // Числа
+	g.AddRule(NT("L"), { T("true") });
+	g.AddRule(NT("L"), { T("false") });
+
+	// --- Идентификаторы (Переменные) ---
+	g.AddRule(NT("O"), { NT("P"), NT("Q") });
+	g.AddRule(NT("Q"), { T("."), NT("P"), NT("Q") });
+	g.AddRule(NT("Q"), { T("["), NT("G"), T("]"), NT("Q") });
+	g.AddRule(NT("Q"), { EPS });
+
+	g.AddRule(NT("P"), { T("q"), NT("R") });
+	g.AddRule(NT("P"), { T("w"), NT("R") });
+	g.AddRule(NT("P"), { T("r"), NT("R") });
+
+	g.AddRule(NT("R"), { T("q"), NT("R") });
+	g.AddRule(NT("R"), { T("w"), NT("R") });
+	g.AddRule(NT("R"), { T("r"), NT("R") });
+	g.AddRule(NT("R"), { T("0"), NT("R") });
+	g.AddRule(NT("R"), { T("1"), NT("R") });
+	g.AddRule(NT("R"), { EPS });
+
+	for (int i = 0; i <= 9; ++i)
+	{
+		std::string digit = std::to_string(i);
+		g.AddRule(NT("Z"), { T(digit), NT("Y") });
+		g.AddRule(NT("Y"), { T(digit), NT("Y") });
+	}
+	g.AddRule(NT("Y"), { EPS });
+
+	return g;
+}
 
 Grammar GetConditionGrammar()
 {
