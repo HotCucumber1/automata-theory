@@ -16,6 +16,8 @@ Grammar ControlWork2();
 Grammar ControlWork3();
 Grammar ControlWork4();
 
+Grammar GetConditionGrammar();
+
 int main()
 {
 	try
@@ -38,8 +40,12 @@ int main()
 		const auto input2 = "ta=i;b:ra:ie$";
 		const auto g2 = ControlWork2();
 
-		Parser parser(g2);
-		if (parser.ParseInput(input2))
+		const auto condInput1 = "taf$";
+		const auto condInput2 = "(q+w)<=q*watafo(q>w+r)$";
+		const auto condGrammar = GetConditionGrammar();
+
+		Parser parser(condGrammar);
+		if (parser.ParseInput(condInput2))
 		{
 			std::cout << "Parsed successfully" << std::endl;
 			return 0;
@@ -54,6 +60,131 @@ int main()
 		std::cerr << e.what() << std::endl;
 		return 1;
 	}
+}
+/*
+ * Con -> Con or Con1 | Con1
+ * Con1 -> Con1 and Con2 | Con2
+ * Con2 -> not Con2 | true | false | (Con) | RCon
+ * RCon -> Expr ROp Expr | Expr
+ * ROp -> < | > | <= | >= | == | <>
+ * Expr -> Expr + Expr1 | Expr - Expr1 | Expr1
+ * Expr1 -> Expr1 MultiOp Expr2 | Expr2
+ * MultiOp -> * | / | mod | div
+ * Expr2 -> -Expr2 | (Expr) | LargeIdent | NUM
+ * LargeIdent -> Ident X
+ * X -> # | .Ident X | [Expr] X
+ */
+
+// A    -> B C
+// C    -> or B C | ε
+// B    -> D E
+// E    -> and D E | ε
+// D    -> not D | true | false | (A) | F
+// F    -> G H I | G
+// H    -> < | > | <= | >= | == | <>
+// G    -> J K
+// K    -> + J K | - J K | ε
+// J    -> L M
+// M    -> N L M | ε
+// N    -> * | / | mod | div
+// L    -> - L | (G) | O | NUM
+// O    -> P Q
+// Q    -> # | . P Q | [G] Q
+
+Grammar GetConditionGrammar()
+{
+	Grammar g;
+	// --- Корень и Логические уровни (OR, AND) ---
+	g.AddRule('S', "A$", true);
+	g.AddRule('A', "BC");
+	g.AddRule('C', "oBC"); // o - OR
+	g.AddRule('C', "#");
+	g.AddRule('B', "DE");
+	g.AddRule('E', "aDE"); // a - AND
+	g.AddRule('E', "#");
+
+	// --- Логическое НЕ и Сравнение ---
+	g.AddRule('D', "nD"); // n - NOT
+	g.AddRule('D', "F");
+	g.AddRule('F', "GX"); // Левая факторизация для сравнений
+	g.AddRule('X', "HI"); // H - оператор, I - правая часть
+	g.AddRule('X', "#");
+	g.AddRule('I', "G"); // Правая часть сравнения - это арифм. выражение
+
+	// --- Операторы сравнения (полная левая факторизация) ---
+	g.AddRule('H', "<U");
+	g.AddRule('U', "="); // <=
+	g.AddRule('U', ">"); // <>
+	g.AddRule('U', "#"); // <
+	g.AddRule('H', ">V");
+	g.AddRule('V', "="); // >=
+	g.AddRule('V', "#"); // >
+	g.AddRule('H', "=W");
+	g.AddRule('W', "="); // ==
+
+	// --- Арифметика (Сложение/Вычитание) ---
+	g.AddRule('G', "JK");
+	g.AddRule('K', "+JK");
+	g.AddRule('K', "-JK");
+	g.AddRule('K', "#");
+
+	// --- Арифметика (Умножение/Деление) ---
+	g.AddRule('J', "LM");
+	g.AddRule('M', "NLM");
+	g.AddRule('M', "#");
+	g.AddRule('N', "*");
+	g.AddRule('N', "/");
+	g.AddRule('N', "m"); // m - MOD
+	g.AddRule('N', "d"); // d - DIV
+
+	// --- Атомарные выражения (Скобки, Переменные, Числа) ---
+	g.AddRule('L', "-L"); // Унарный минус
+	g.AddRule('L', "(A)"); // Единый вход для скобок (решает конфликт D и L)
+	g.AddRule('L', "O"); // Переменные
+	g.AddRule('L', "Z"); // Числа
+	g.AddRule('L', "t"); // t - true
+	g.AddRule('L', "f"); // f - false
+
+	// --- Переменные и свойства (Идентификаторы) ---
+	g.AddRule('O', "PQ");
+	g.AddRule('Q', ".PQ");
+	g.AddRule('Q', "[G]Q");
+	g.AddRule('Q', "#");
+	g.AddRule('P', "qR"); // Начинается с q, w или r
+	g.AddRule('P', "wR");
+	g.AddRule('P', "rR");
+	g.AddRule('R', "qR"); // Рекурсия для имен любой длины
+	g.AddRule('R', "wR");
+	g.AddRule('R', "rR");
+	g.AddRule('R', "0R");
+	g.AddRule('R', "1R");
+	// ... и так далее для всех букв/цифр в R ...
+	g.AddRule('R', "#");
+
+	// --- Числа (Многоразрядные) ---
+	g.AddRule('Z', "0Y");
+	g.AddRule('Z', "1Y");
+	g.AddRule('Z', "2Y");
+	g.AddRule('Z', "3Y");
+	g.AddRule('Z', "4Y");
+	g.AddRule('Z', "5Y");
+	g.AddRule('Z', "6Y");
+	g.AddRule('Z', "7Y");
+	g.AddRule('Z', "8Y");
+	g.AddRule('Z', "9Y");
+	g.AddRule('Y', "0Y");
+	g.AddRule('Y', "1Y");
+	g.AddRule('Y', "2Y");
+	g.AddRule('Y', "3Y");
+	g.AddRule('Y', "4Y");
+	g.AddRule('Y', "5Y");
+	g.AddRule('Y', "6Y");
+	g.AddRule('Y', "7Y");
+	g.AddRule('Y', "8Y");
+	g.AddRule('Y', "9Y");
+	g.AddRule('Y', "#");
+
+	return g;
 }
 
 // F −> function I(I) S end

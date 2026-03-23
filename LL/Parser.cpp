@@ -83,7 +83,7 @@ void Parser::PrintCurrRow(std::ostream& out) const
 	out << std::left
 			  << std::setw(5) << row.id
 			  << std::setw(10) << row.symbol
-			  << std::setw(25) << guideStr
+			  << std::setw(45) << guideStr
 			  << std::setw(10) << row.next
 			  << std::setw(10) << row.stack
 			  << std::setw(10) << (row.error ? "true" : "false")
@@ -106,7 +106,7 @@ void PrintHead()
 	std::cout << std::left
 			  << std::setw(5) << "ID"
 			  << std::setw(10) << "Symbol"
-			  << std::setw(25) << "Guide Set"
+			  << std::setw(45) << "Guide Set"
 			  << std::setw(10) << "Next"
 			  << std::setw(10) << "Stack"
 			  << std::setw(10) << "Error"
