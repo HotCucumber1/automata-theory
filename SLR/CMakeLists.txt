@@ -1,0 +1,1 @@
+add_executable(SLR Grammar/Grammar2.cpp SLRTableBuilder.cpp main.cpp)

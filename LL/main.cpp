@@ -1,7 +1,9 @@
+#include "Grammar/Grammar.h"
 #include "Parser.h"
-#include  "Grammar/Grammar.h"
 
 #include <iostream>
+
+void PrintError(const Parser& parser);
 
 Grammar GetTask1Grammar();
 Grammar GetWrongGrammar();
@@ -39,7 +41,48 @@ int main()
 		const auto g2 = ControlWork2();
 
 		const auto condInput1 = "true and false $";
-		const auto condInput2 = "( q + w ) <= q * w and true and false or ( q > w + r ) $";
+		// - 1
+		// - ( - 1 )
+		// - ( - 1 >= - q.w[ q + w * 1 - 2 ])
+		// ( q + w ) <= q * w and true and false or ( q > w + r )
+
+		// q > ( w . r [ ( w * 1 ) ] [ w * 1 ] ) - w
+		// a - - c
+		// q . w . r [ q + w * 5 ] or not ( q > w )
+		// not ( q or w and not r ) or true
+
+		// Task 1
+		// q + w
+		// ( q + w ) * - ( - q + w )
+		// - ( q + w ) * ( - q + w ) + 1
+		// q
+
+		// Task 2
+		// q . w . r [ q * - w ]
+		// q . w . r [ 5 . 5 ] * q . w [ 45 . 5 ] (не проходит, как и должно)
+
+		// Task 3
+		// q > 5
+		// q < 5
+		// q > w > r (не проходит, как и должно)
+		// q > ( w > r )
+		// ( q + w * r ) >= ( q . w . r [ 5 + 3] * r )
+		// q / 0
+		// ( q > 0 ) == ( w < 0 )
+
+		// Task 4
+		// true and false
+		// true and 5
+		// true and q . w . r [ 5 + 3 ]
+		// true and q . w [ true and false ] (не проходит, как и должно)
+		// true and q [ false ] (не проходит, как и должно)
+		// not true and not false or not q
+		// ( q or w ) and ( not q or w )
+		// not ( not q or not w ) and ( q > w )
+		// not ( not ( q > w ) or ( not w > r ) or ( q > w ) and true )
+		// ( ( q + w * - r ) + q . w [ 55 ] ) == q . w . r [ q . r * q . r ] and not q . w . r [ q ]
+
+		const auto condInput2 = "( ( q + w * - r ) + q . w [ 5 ] ) = q . w . r [ q . r * q . r ] and not q . w . r [ q ]";
 		const auto condGrammar = GetConditionGrammar2();
 
 		Parser parser(condGrammar);
@@ -48,15 +91,7 @@ int main()
 			std::cout << "Parsed successfully" << std::endl;
 			return 0;
 		}
-		std::cerr << "Error here:" << std::endl;
-		parser.PrintCurrRow(std::cerr);
-		std::cerr << "Parsed str: ";
-		for (const auto& token : parser.GetParsedStr())
-		{
-			std::cerr << token.ruleName << ' ';
-		}
-		std::cerr << std::endl;
-		std::cerr << "Current char: " << parser.GetCurrToken().ruleName << std::endl;
+		PrintError(parser);
 	}
 	catch (const std::exception& e)
 	{
@@ -64,6 +99,21 @@ int main()
 		return 1;
 	}
 }
+
+void PrintError(const Parser& parser)
+{
+	std::cerr << "Error here:" << std::endl;
+	parser.PrintCurrRow(std::cerr);
+
+	std::cerr << "Parsed str: ";
+	for (const auto& [ruleName, isTerminal] : parser.GetParsedStr())
+	{
+		std::cerr << ruleName << ' ';
+	}
+	std::cerr << std::endl;
+	std::cerr << "Current char: " << parser.GetCurrToken().ruleName << std::endl;
+}
+
 /*
  * Con -> Con or Con1 | Con1
  * Con1 -> Con1 and Con2 | Con2
@@ -172,7 +222,7 @@ Grammar2 GetConditionGrammar2()
 
 	for (int i = 0; i <= 9; ++i)
 	{
-		std::string digit = std::to_string(i);
+		const auto digit = std::to_string(i);
 		g.AddRule(NT("Z"), { T(digit), NT("Y") });
 		g.AddRule(NT("Y"), { T(digit), NT("Y") });
 	}
